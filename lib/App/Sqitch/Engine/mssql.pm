@@ -1,4 +1,4 @@
-package App::Sqitch::Engine::sqlcmd;
+package App::Sqitch::Engine::mssql;
 
 use 5.010;
 use strict;
@@ -153,10 +153,10 @@ has _sqlcmd => (
 
 sub sqlcmd { @{ shift->_sqlcmd} }
 
-sub key { 'sqlcmd' }
+sub key { 'mssql' }
 sub name { 'MSSQL' }
 sub driver { 'DBD::ADO' }
-sub default_client { 'sqlcmd' }
+sub default_client { 'sqlcmd.exe' }
 
 sub _char2ts {
     substr($_[1],0,10) . ' ' . substr($_[1],11,16);
@@ -220,7 +220,7 @@ sub initialize {
     if ($reg ne $self->registry)
 {
     my $result = $sqlsrv->sql($stmnt);
-    $self->run_upgrade(file(__FILE__)->dir->file('sqlcmd.sql'));
+    $self->run_upgrade(file(__FILE__)->dir->file('mssql.sql'));
     
     my @tables = qw(releases changes dependencies events projects tags verify);
     foreach my $name (@tables) {
@@ -809,15 +809,15 @@ __END__
 
 =head1 Name
 
-App::Sqitch::Engine::sqlcmd - Sqitch MSSQL Engine
+App::Sqitch::Engine::mssql - Sqitch MSSQL Engine
 
 =head1 Synopsis
 
-my $mysql = App::Sqitch::Engine->load( engine => 'sqlcmd' );
+my $mysql = App::Sqitch::Engine->load( engine => 'mssql' );
 
 =head1 Description
 
-App::Sqitch::Engine::sqlcmd provides the MSSQL storage engine for Sqitch.
+App::Sqitch::Engine::mssql provides the MSSQL storage engine for Sqitch.
 
 =head1 Author
 

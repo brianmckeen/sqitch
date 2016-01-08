@@ -28,7 +28,7 @@ If you'd like to manage an MySQL database, see L<sqitchtutorial-mysql>.
 
 If you'd like to manage an Vertica database, see L<sqitchtutorial-vertica>.
 
-If you'd like to manage an MS SQL Server database, see L<sqitchtutorial-sqlcmd>.
+If you'd like to manage an MS SQL Server database, see L<sqitchtutorial-mssql>.
 
 =head1 Starting a New Project
 

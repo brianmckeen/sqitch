@@ -2,7 +2,7 @@
 
 =head1 Name
 
-sqitchtutorial-sqlcmd - A tutorial introduction to Sqitch change management on MS SQL Server
+sqitchtutorial-mssql - A tutorial introduction to Sqitch change management on MS SQL Server
 
 =head1 Synopsis
 
@@ -47,14 +47,14 @@ source code repository. So let's do that with Git:
    create mode 100644 README.md
 
 If you're a Git user and want to follow along the history, the repository used
-in these examples is L<on GitHub|https://github.com/theory/sqitch-sqlcmd-intro>.
+in these examples is L<on GitHub|https://github.com/theory/sqitch-mssql-intro>.
 
 Now that we have a repository, let's get started with Sqitch. Every Sqitch
 project must have a name associated with it, and, optionally, a unique URI. We
 recommend including the URI, as it increases the uniqueness of object
 identifiers internally, so let's specify one when we initialize Sqitch:
 
-  > sqitch --engine sqlcmd init flipr --uri flipr
+  > sqitch --engine mssql init flipr --uri flipr
   Created sqitch.conf
   Created sqitch.plan
   Created deploy/
@@ -65,45 +65,45 @@ Let's have a look at F<sqitch.conf>:
 
   > textpad sqitch.conf
   [core]
-  	engine = sqlcmd
+  	engine = mssql
   	# plan_file = sqitch.plan
   	# top_dir = .
   	# deploy_dir = deploy
   	# revert_dir = revert
   	# verify_dir = verify
   	# extension = sql
-  # [engine "sqlcmd"]
-  	# target = db:sqlcmd:
+  # [engine "mssql"]
+  	# target = db:mssql:
   	# registry = sqitch
   	# client = sqlcmd.exe
 
 Good, it picked up on the fact that we're creating changes for the MSSQL
-engine, thanks to the C<--engine sqlcmd> option, and saved it to the file.
-Furthermore, it wrote a commented-out C<[engine "sqlcmd"]> section with all the
+engine, thanks to the C<--engine mssql> option, and saved it to the file.
+Furthermore, it wrote a commented-out C<[engine "mssql"]> section with all the
 available MSSQL engine-specific settings commented out and ready to be edited
 as appropriate.
 
 So, edit the comments out to get Sqitch to use the settings. Then type the
 following to add new settings.
 
-  > sqitch config engine.sqlcmd.target flipr_test
-  > sqitch config engine.sqlcmd.integrated_security SSPI
-  > sqitch config engine.sqlcmd.provider SQLNCLI10.1
-  > sqitch config engine.sqlcmd.uri DBI:ADO
-  > sqitch config target.flipr_test.uri db:sqlcmd://@localhost/flipr_test
+  > sqitch config engine.mssql.target flipr_test
+  > sqitch config engine.mssql.integrated_security SSPI
+  > sqitch config engine.mssql.provider SQLNCLI10.1
+  > sqitch config engine.mssql.uri DBI:ADO
+  > sqitch config target.flipr_test.uri db:mssql://@localhost/flipr_test
 
 Let's have a look at F<sqitch.conf> now:
 
   > cat sqitch.conf
   [core]
-  	engine = sqlcmd
+  	engine = mssql
   	plan_file = sqitch.plan
   	top_dir = .
   	deploy_dir = deploy
   	revert_dir = revert
   	verify_dir = verify
   	extension = sql
-  [engine "sqlcmd"]
+  [engine "mssql"]
   	target = flipr_test
   	registry = sqitch
   	client = sqlcmd.exe
@@ -111,7 +111,7 @@ Let's have a look at F<sqitch.conf> now:
   	provider = SQLNCLI10.1
   	uri = DBI:ADO
   [target "flipr_test"]
-  	uri = db:sqlcmd://@localhost/flipr_test
+  	uri = db:mssql://@localhost/flipr_test
 
 By default, Sqitch will read F<sqitch.conf> in the current directory for
 settings. But it will also read F<~/.sqitch/sqitch.conf> for user-specific
@@ -214,7 +214,7 @@ used to manage I<all> projects on the database. Ideally, only Sqitch
 data will be stored in this schema.
 
 If you'd like it to use a different schema, use
-C<sqitch config engine.sqlcmd.registry $name> to configure it (or via the
+C<sqitch config engine.mssql.registry $name> to configure it (or via the
 L<C<target> command|sqitch-target>; more L<below|/On Target>).
 
 Next, Sqitch deploys changes to the target database, which we specified on the
@@ -244,7 +244,7 @@ Give it a try. Put this query into F<verify/appuser.sql>:
   sqitch.verify "SELECT COUNT(*) FROM sys.sysusers WHERE name = 'flipr'";
 
 This will work well as long as we know that the registry schema is named
-C<sqitch>. If you've set C<core.sqlcmd.registry> to a different value, you
+C<sqitch>. If you've set C<core.mssql.registry> to a different value, you
 will need to make sure you specify the correct schema name in the script.
 
 Now you can run the C<verify> script with the L<C<verify>|sqitch-verify>
@@ -752,21 +752,21 @@ First, create a new database on a server, say the flipr database on the sdhis4 s
   
 Now enter the following to repoint the deployment:
 
-  > sqitch config engine.sqlcmd.target flipr_live
-  > sqitch config target.flipr_live.uri db:sqlcmd://@sdhis4/flipr
+  > sqitch config engine.mssql.target flipr_live
+  > sqitch config target.flipr_live.uri db:mssql://@sdhis4/flipr
 
 Let's have a look at F<sqitch.conf> now:
 
   > textpad sqitch.conf
   [core]
-  	engine = sqlcmd
+  	engine = mssql
   	plan_file = sqitch.plan
   	top_dir = .
   	deploy_dir = deploy
   	revert_dir = revert
   	verify_dir = verify
   	extension = sql
-  [engine "sqlcmd"]
+  [engine "mssql"]
   	target = flipr_live
   	registry = sqitch
   	client = sqlcmd.exe
@@ -774,9 +774,9 @@ Let's have a look at F<sqitch.conf> now:
   	provider = SQLNCLI10.1
   	uri = DBI:ADO
   [target "flipr_test"]
-  	uri = db:sqlcmd://@localhost/flipr_test
+  	uri = db:mssql://@localhost/flipr_test
   [target "flipr_live"]
-  	uri = db:sqlcmd://@sdhis4/flipr
+  	uri = db:mssql://@sdhis4/flipr
 
 
   Now deploy it:
@@ -1095,7 +1095,7 @@ Ah, that looks a bit better. Let's have a look at the plan:
   > textpad sqitch.plan
   %syntax-version=1.0.0-b2
   %project=flipr
-  %uri=https://github.com/theory/sqitch-sqlcmd-intro/
+  %uri=https://github.com/theory/sqitch-mssql-intro/
 
   appuser 2013-12-31T21:04:04Z Marge N. O’Vera <marge@example.com> # Creates a an application user.
   users [appuser] 2013-12-31T21:32:48Z Marge N. O’Vera <marge@example.com> # Creates table to track our users.

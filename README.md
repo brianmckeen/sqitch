@@ -56,7 +56,7 @@ Want to learn more? The best place to start is in the tutorials:
 * [Introduction to Sqitch on MySQL](lib/sqitchtutorial-mysql.pod)
 * [Introduction to Sqitch on Firebird](lib/sqitchtutorial-firebird.pod)
 * [Introduction to Sqitch on Vertica](lib/sqitchtutorial-vertica.pod)
-* [Introduction to Sqitch on SQL Server](lib/sqitchtutorial-sqlcmd.pod)
+* [Introduction to Sqitch on MSSQL Server](lib/sqitchtutorial-mssql.pod)
 
 There have also been a number of presentations on Sqitch:
 

@@ -31,7 +31,7 @@ If you'd like to manage an Firebird database, see L<sqitchtutorial-firebird>.
 
 If you'd like to manage an Vertica database, see L<sqitchtutorial-vertica>.
 
-If you'd like to manage an MS SQL Server database, see L<sqitchtutorial-sqlcmd>.
+If you'd like to manage an MS SQL Server database, see L<sqitchtutorial-mssql>.
 
 =head2 VM Configuration
 

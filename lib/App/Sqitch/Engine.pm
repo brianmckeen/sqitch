@@ -178,7 +178,7 @@ sub deploy {
     my $plan     = $self->_sync_plan;
     my $to_index = $plan->count - 1;
 
-    if ($self->name eq 'sqlcmd') {
+    if ($self->name eq 'mssql') {
               $self->initialize;
     }
     
