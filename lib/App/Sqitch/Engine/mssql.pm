@@ -22,44 +22,43 @@ extends 'App::Sqitch::Engine';
 our $VERSION = '0.999_1';
 
 has registry_uri => (
-is => 'ro',
-isa => URIDB,
-lazy => 1,
-required => 1,
-default => sub {
-        my $self = shift;
-        my $uri = $self->uri->clone;
+    is       => 'ro',
+    isa      => URIDB,
+    lazy     => 1,
+    required => 1,
+    default  => sub {
+        my $self   = shift;
+        my $uri    = $self->uri->clone;
         my @fields = split /\//, $uri;
-        my $db = $fields[3];
-        my @host = split /@/, $fields[2];
-        my $pwd = $uri->password; 
+        my $db     = $fields[3];
+        my @host   = split /@/, $fields[2];
+        my $pwd    = $uri->password;
 
-        if (defined $pwd)
-	{
-	  $uri->query("Provider=" . $self->provider . ";Initial Catalog=" . $db . ";Server=" . $host[1] . ";");
-	}
-	if (not defined $pwd)
-		{
-		  
-	$uri->query("Provider=" . $self->provider . ";Integrated Security=" . $self->integrated_security . ";Initial Catalog=" . $db . ";Server=" . $host[1] . ";");
-	}
+        if ( defined $pwd ) {
+            $uri->query( "Provider=" . $self->provider . ";Initial Catalog=" . $db . ";Server=" . $host[1] . ";" );
+        }
+        if ( not defined $pwd ) {
+
+            $uri->query( "Provider=" . $self->provider . ";Integrated Security=" . $self->integrated_security . ";Initial Catalog=" . $db . ";Server=" . $host[1] . ";" );
+        }
         return $uri;
     },
 );
 
 sub _dt($) {
     require App::Sqitch::DateTime;
-    return App::Sqitch::DateTime->new(split /:/ => shift);
+    return App::Sqitch::DateTime->new( split /:/ => shift );
 }
 
 sub _schema {
     my $self = shift;
     $self->registry . '.';
-    }
+}
 
 sub _tag_subselect_columns {
     my $self = shift;
-    return join(', ',
+    return join(
+        ', ',
         '? AS tid',
         '? AS tname',
         '? AS proj',
@@ -76,7 +75,7 @@ sub _tag_subselect_columns {
 
 sub registry_destination {
     my $uri = shift->registry_uri;
-    if ($uri->password) {
+    if ( $uri->password ) {
         $uri = $uri->clone;
         $uri->password(undef);
     }
@@ -84,34 +83,38 @@ sub registry_destination {
 }
 
 has dbh => (
-    is => 'rw',
-    isa => DBH,
-    lazy => 1,
+    is      => 'rw',
+    isa     => DBH,
+    lazy    => 1,
     default => sub {
         my $self = shift;
         $self->use_driver;
 
         my $uri = $self->registry_uri;
-        
-        my $dbh = DBI->connect($uri->dbi_dsn, scalar $self->username, scalar $self->password, {
-            PrintError => 0,
-            RaiseError => 0,
-            AutoCommit => 1,
-            HandleError => sub {
-                my ($err, $dbh) = @_;
-                $@ = $err;
-                @_ = ($dbh->state || 'DEV' => $dbh->errstr);
-                goto &hurl;
-            },
-            Callbacks => {
-                connected => sub {
-                    my $dbh = shift;
-                    return;
-                },
-            },
-        });
 
-       
+        my $dbh = DBI->connect(
+            $uri->dbi_dsn,
+            scalar $self->username,
+            scalar $self->password,
+            {
+                PrintError  => 0,
+                RaiseError  => 0,
+                AutoCommit  => 1,
+                HandleError => sub {
+                    my ( $err, $dbh ) = @_;
+                    $@ = $err;
+                    @_ = ( $dbh->state || 'DEV' => $dbh->errstr );
+                    goto &hurl;
+                },
+                Callbacks => {
+                    connected => sub {
+                        my $dbh = shift;
+                        return;
+                    },
+                },
+            }
+        );
+
         return $dbh;
     }
 );
@@ -120,46 +123,45 @@ has dbh => (
 with 'App::Sqitch::Role::DBIEngine';
 
 has _sqlcmd => (
-    is => 'ro',
-    isa => ArrayRef,
-    lazy => 1,
-    required => 1,
+    is         => 'ro',
+    isa        => ArrayRef,
+    lazy       => 1,
+    required   => 1,
     auto_deref => 1,
-    default => sub {
+    default    => sub {
         my $self = shift;
-        my $uri = $self->uri;
+        my $uri  = $self->uri;
 
-        $self->sqitch->warn(__x
-            'Database name missing in URI "{uri}"',
+        $self->sqitch->warn(
+            __x 'Database name missing in URI "{uri}"',
             uri => $uri
         ) unless $uri->dbname;
 
         my @ret = ( $self->client );
         for my $spec (
             [ d => $uri->dbname ],
-	    [ S => $uri->host ],
-        ) {
+            [ S => $uri->host ],
+          ) {
             push @ret, " -$spec->[0] " => $spec->[1] if $spec->[1];
         }
 
         push @ret => (
             ' -E ',
         );
-        
+
         return \@ret;
     },
 );
 
+sub sqlcmd { @{ shift->_sqlcmd } }
 
-sub sqlcmd { @{ shift->_sqlcmd} }
-
-sub key { 'mssql' }
-sub name { 'MSSQL' }
-sub driver { 'DBD::ADO' }
+sub key            { 'mssql' }
+sub name           { 'MSSQL' }
+sub driver         { 'DBD::ADO' }
 sub default_client { 'sqlcmd.exe' }
 
 sub _char2ts {
-    substr($_[1],0,10) . ' ' . substr($_[1],11,16);
+    substr( $_[1], 0, 10 ) . ' ' . substr( $_[1], 11, 16 );
 }
 
 sub _ts2char_format {
@@ -172,86 +174,88 @@ sub initialized {
     my $self = shift;
 
     # Try to connect.
-    my $dbh = try { $self->dbh } catch { 
-    return if $DBI::err && $DBI::err == 1049;
-    die $_;
+    my $dbh = try { $self->dbh }
+    catch {
+        return if $DBI::err && $DBI::err == 1049;
+        die $_;
     } or return 0;
-    
-return $dbh->selectcol_arrayref(q{
+
+    return $dbh->selectcol_arrayref(
+        q{
 	select count(*) FROM information_schema.schemata
 	WHERE schema_name=?
-    }, undef, $self->registry)->[0];
+    }, undef, $self->registry
+    )->[0];
 }
 
 sub initialize {
 
-    my $self = shift;
-    my $uri = $self->uri->clone;
+    my $self  = shift;
+    my $uri   = $self->uri->clone;
     my $uname = $uri->user;
-    my $pwd = $uri->password;
+    my $pwd   = $uri->password;
 
     #Create the Sqitch database if it does not exist.
-    (my $db = $self->registry) =~ s/"/""/g;
-    my $sqlsrv = sql_init($self->uri->host, undef, undef, $self->registry_uri->dbname);
-    
-    if (defined $pwd)
-    {
-    	$sqlsrv = sql_init($self->uri->host, $uname, $pwd, $self->registry_uri->dbname);
+    ( my $db = $self->registry ) =~ s/"/""/g;
+    my $sqlsrv = sql_init( $self->uri->host, undef, undef, $self->registry_uri->dbname );
+
+    if ( defined $pwd ) {
+        $sqlsrv = sql_init( $self->uri->host, $uname, $pwd, $self->registry_uri->dbname );
     }
-    
+
     my $stmnt = sprintf(
-	"CREATE SCHEMA %s",
-            $self->registry 
-        );
-  
+        "CREATE SCHEMA %s",
+        $self->registry
+    );
+
     my $check_stmnt = sprintf(
-	"SELECT schema_name FROM information_schema.schemata WHERE schema_name = N'%s'",
-            $self->registry 
-        );
+        "SELECT schema_name FROM information_schema.schemata WHERE schema_name = N'%s'",
+        $self->registry
+    );
 
     my $registry = $sqlsrv->sql($check_stmnt);
 
     my $reg = "";
 
     foreach my $row (@$registry) {
-      $reg = "$$row{schema_name}";
+        $reg = "$$row{schema_name}";
     }
 
-    if ($reg ne $self->registry)
-{
-    my $result = $sqlsrv->sql($stmnt);
-    $self->run_upgrade(file(__FILE__)->dir->file('mssql.sql'));
-    
-    my @tables = qw(releases changes dependencies events projects tags verify);
-    foreach my $name (@tables) {
-    my $schema_stmnt = sprintf(qq
+    if ( $reg ne $self->registry ) {
+        my $result = $sqlsrv->sql($stmnt);
+        $self->run_upgrade( file(__FILE__)->dir->file('mssql.sql') );
+
+        my @tables = qw(releases changes dependencies events projects tags verify);
+        foreach my $name (@tables) {
+            my $schema_stmnt = sprintf(
+                qq
 	{ALTER SCHEMA %s TRANSFER $name;},
-            $self->registry
-        );
-    $result = $sqlsrv->sql($schema_stmnt);
-}
-  $self->_register_release;
-}
+                $self->registry
+            );
+            $result = $sqlsrv->sql($schema_stmnt);
+        }
+        $self->_register_release;
+    }
 }
 
 sub run_upgrade {
-    my ($self, $file) = @_;
-    my $sqlsrv = sql_init($self->uri->host, undef, undef, $self->registry_uri->dbname);
+    my ( $self, $file ) = @_;
+    my $sqlsrv     = sql_init( $self->uri->host, undef, undef, $self->registry_uri->dbname );
     my $file_stmnt = read_file($file);
-    my $result = $sqlsrv->sql($file_stmnt);
+    my $result     = $sqlsrv->sql($file_stmnt);
 }
 
 # Override to lock the Sqitch tables. This ensures that only one instance of
 # Sqitch runs at one time.
 sub begin_work {
     my $self = shift;
-    my $dbh = $self->dbh;
+    my $dbh  = $self->dbh;
 
     # Start transaction and lock all tables to disallow concurrent changes.
-#    $dbh->do('LOCK TABLES ' . join ', ', map {
-#
-#        "$_ WRITE"
-#    } qw(changes dependencies events projects tags));
+    #    $dbh->do('LOCK TABLES ' . join ', ', map {
+    #
+    #        "$_ WRITE"
+    #    } qw(changes dependencies events projects tags));
     $dbh->begin_work;
     return $self;
 }
@@ -260,9 +264,10 @@ sub begin_work {
 # connection can fail.
 sub finish_work {
     my $self = shift;
-    my $dbh = $self->dbh;
+    my $dbh  = $self->dbh;
     $dbh->commit;
- #   $dbh->do('UNLOCK TABLES');
+
+    #   $dbh->do('UNLOCK TABLES');
     return $self;
 }
 
@@ -275,7 +280,7 @@ sub _regex_op { 'REGEXP' }
 sub _limit_default { '1000000' }
 
 sub _listagg_format {
-    my $self = shift;
+    my $self   = shift;
     my $schema = $self->_schema;
     return qq{SUBSTRING((select ' ' + %s FROM $schema changes h, $schema tags t WHERE h.change_id = c.change_id AND h.change_id = t.change_id for XML path('')),2,8000)};
 }
@@ -292,24 +297,25 @@ sub _capture {
 
 sub _spool {
     my $self = shift;
-    my $fh = shift;
+    my $fh   = shift;
     return $self->sqitch->spool( $fh, $self->sqlcmd, @_ );
 }
 
 sub run_file {
-    my ($self, $file) = @_;
+    my ( $self, $file ) = @_;
     $self->_run( '-i ' => "$file" );
 }
 
 sub run_verify {
-    my ($self, $file) = @_;
+    my ( $self, $file ) = @_;
+
     # Suppress STDOUT unless we want extra verbosity.
-    my $meth = $self->can($self->sqitch->verbosity > 1 ? '_run' : '_capture');
+    my $meth = $self->can( $self->sqitch->verbosity > 1 ? '_run' : '_capture' );
     $self->$meth( '-i ' => "$file" );
 }
 
 sub run_handle {
-    my ($self, $fh) = @_;
+    my ( $self, $fh ) = @_;
     $self->_spool($fh);
 }
 
@@ -317,13 +323,16 @@ sub _cid {
     my ( $self, $ord, $offset, $project ) = @_;
     my $schema = $self->_schema;
     return try {
-        return $self->dbh->selectcol_arrayref(qq{
+        return $self->dbh->selectcol_arrayref(
+            qq{
 		SELECT TOP 1 change_id
 		FROM $schema changes	
 		WHERE project = ?
 		ORDER BY committed_at $ord
-}, undef, $project || $self->plan->project)->[0];
-    } catch {
+}, undef, $project || $self->plan->project
+        )->[0];
+    }
+    catch {
         return if $self->_no_table_error && !$self->initialized;
         die $_;
     };
@@ -336,7 +345,8 @@ sub current_state {
     my $tagcol = sprintf $self->_listagg_format, 't.tag';
     my $dbh    = $self->dbh;
     my $schema = $self->_schema;
-    my $state  = $dbh->selectrow_hashref(qq{
+    my $state  = $dbh->selectrow_hashref(
+        qq{
         SELECT TOP 1 c.change_id
              , c.change
              , c.project
@@ -362,8 +372,9 @@ sub current_state {
              , c.planner_email
              , c.planned_at
          ORDER BY c.committed_at DESC
-    }, undef, $project // $self->plan->project ) or return undef;
-    unless (ref $state->{tags}) {
+    }, undef, $project // $self->plan->project
+    ) or return undef;
+    unless ( ref $state->{tags} ) {
         $state->{tags} = $state->{tags} ? [ split / / => $state->{tags} ] : [];
     }
     $state->{committed_at} = _dt $state->{committed_at};
@@ -377,48 +388,51 @@ sub search_events {
 
     # Determine order direction.
     my $dir = 'DESC';
-    if (my $d = delete $p{direction}) {
-        $dir = $d =~ /^ASC/i  ? 'ASC'
-             : $d =~ /^DESC/i ? 'DESC'
-             : hurl 'Search direction must be either "ASC" or "DESC"';
+    if ( my $d = delete $p{direction} ) {
+        $dir =
+            $d =~ /^ASC/i  ? 'ASC'
+          : $d =~ /^DESC/i ? 'DESC'
+          :                  hurl 'Search direction must be either "ASC" or "DESC"';
     }
 
     # Limit with regular expressions?
-    my (@wheres, @params);
+    my ( @wheres, @params );
     my $op = $self->_regex_op;
     for my $spec (
         [ committer => 'e.committer_name' ],
-        [ planner   => 'e.planner_name'   ],
-        [ change    => 'e.change'         ],
-        [ project   => 'e.project'        ],
-    ) {
+        [ planner   => 'e.planner_name' ],
+        [ change    => 'e.change' ],
+        [ project   => 'e.project' ],
+      ) {
         my $regex = delete $p{ $spec->[0] } // next;
         push @wheres => "$spec->[1] $op ?";
         push @params => $regex;
     }
 
     # Match events?
-    if (my $e = delete $p{event} ) {
-        my ($in, @vals) = $self->_in_expr( $e );
+    if ( my $e = delete $p{event} ) {
+        my ( $in, @vals ) = $self->_in_expr($e);
         push @wheres => "e.event $in";
         push @params => @vals;
     }
 
     # Assemble the where clause.
-    my $where = @wheres
-        ? "\n         WHERE " . join( "\n               ", @wheres )
-        : '';
+    my $where =
+      @wheres
+      ? "\n         WHERE " . join( "\n               ", @wheres )
+      : '';
 
     # Handle remaining parameters.
     my $limits = '';
-    if (exists $p{limit} || exists $p{offset}) {
+    if ( exists $p{limit} || exists $p{offset} ) {
         my $lim = delete $p{limit};
         if ($lim) {
             $limits = "\n         TOP 1";
             push @params => $lim;
         }
-        if (my $off = delete $p{offset}) {
-            if (!$lim && ($lim = $self->_limit_default)) {
+        if ( my $off = delete $p{offset} ) {
+            if ( !$lim && ( $lim = $self->_limit_default ) ) {
+
                 # Some drivers require LIMIT when OFFSET is set.
                 $limits = "\n         LIMIT ?";
                 push @params => $lim;
@@ -428,13 +442,13 @@ sub search_events {
         }
     }
 
-    hurl 'Invalid parameters passed to search_events(): '
-        . join ', ', sort keys %p if %p;
+    hurl 'Invalid parameters passed to search_events(): ' . join ', ', sort keys %p if %p;
 
     # Prepare, execute, and return.
     my $cdtcol = sprintf $self->_ts2char_format, 'e.committed_at';
     my $pdtcol = sprintf $self->_ts2char_format, 'e.planned_at';
-    my $sth = $self->dbh->prepare(qq{
+    my $sth    = $self->dbh->prepare(
+        qq{
         SELECT $limits e.event
              , e.project
              , e.change_id
@@ -451,7 +465,8 @@ sub search_events {
              , $pdtcol AS planned_at
           FROM $schema events e$where
          ORDER BY e.committed_at $dir
-    });
+    }
+    );
     $sth->execute();
     return sub {
         my $row = $sth->fetchrow_hashref or return;
@@ -462,12 +477,12 @@ sub search_events {
 }
 
 sub log_deploy_change {
-    my ($self, $change) = @_;
+    my ( $self, $change ) = @_;
     my $dbh    = $self->dbh;
     my $sqitch = $self->sqitch;
     my $schema = $self->_schema;
 
-    my ($id, $name, $proj, $user, $email) = (
+    my ( $id, $name, $proj, $user, $email ) = (
         $change->id,
         $change->format_name,
         $change->project,
@@ -476,22 +491,25 @@ sub log_deploy_change {
     );
 
     my $ts = $self->_ts_default;
-    my $cols = join "\n            , ", $self->_quote_idents(qw(
-        change_id
-        change
-        project
-        note
-        committer_name
-        committer_email
-        planned_at
-        planner_name
-        planner_email
-        committed_at
-    ));
-    
+    my $cols = join "\n            , ", $self->_quote_idents(
+        qw(
+          change_id
+          change
+          project
+          note
+          committer_name
+          committer_email
+          planned_at
+          planner_name
+          planner_email
+          committed_at
+          )
+    );
+
     $dbh->{odbc_force_bind_type} = DBI::SQL_VARCHAR;
-    
-    $dbh->do(qq{
+
+    $dbh->do(
+        qq{
         INSERT INTO $schema changes (
             $cols
         )
@@ -509,25 +527,22 @@ sub log_deploy_change {
     );
 
     if ( my @deps = $change->dependencies ) {
-        $dbh->do(qq{
+        $dbh->do(
+            qq{
             INSERT INTO $schema dependencies(
                   change_id
                 , type
                 , dependency
                 , dependency_id
-           ) } . $self->_multi_values(scalar @deps, $self->_dependency_placeholders),
+           ) } . $self->_multi_values( scalar @deps, $self->_dependency_placeholders ),
             undef,
-            map { (
-                $id,
-                $_->type,
-                $_->as_string,
-                $_->resolved_id,
-            ) } @deps
+            map { ( $id, $_->type, $_->as_string, $_->resolved_id, ) } @deps
         );
     }
 
     if ( my @tags = $change->tags ) {
-        $dbh->do(qq{
+        $dbh->do(
+            qq{
             INSERT INTO $schema tags (
                   tag_id
                 , tag
@@ -540,55 +555,45 @@ sub log_deploy_change {
                 , planner_name
                 , planner_email
                 , committed_at
-           ) } . $self->_multi_values(scalar @tags, $self->_tag_placeholders),
+           ) } . $self->_multi_values( scalar @tags, $self->_tag_placeholders ),
             undef,
-            map { (
-                $_->id,
-                $_->format_name,
-                $proj,
-                $id,
-                $_->note,
-                $user,
-                $email,
-                $self->_char2ts( $_->timestamp ),
-                $_->planner_name,
-                $_->planner_email,
-            ) } @tags
+            map { ( $_->id, $_->format_name, $proj, $id, $_->note, $user, $email, $self->_char2ts( $_->timestamp ), $_->planner_name, $_->planner_email, ) } @tags
         );
     }
 
     return $self->_log_event( deploy => $change );
 }
 
-
 sub _log_event {
-    my ( $self, $event, $change, $tags, $requires, $conflicts) = @_;
+    my ( $self, $event, $change, $tags, $requires, $conflicts ) = @_;
     my $dbh    = $self->dbh;
     my $sqitch = $self->sqitch;
     my $schema = $self->_schema;
 
-    my $ts   = $self->_ts_default;
-    my $cols = join "\n            , ", $self->_quote_idents(qw(
-        event
-        change_id
-        change
-        project
-        note
-        tags
-        requires
-        conflicts
-        committer_name
-        committer_email
-        planned_at
-        planner_name
-        planner_email
-        committed_at
-    ));
-    
+    my $ts = $self->_ts_default;
+    my $cols = join "\n            , ", $self->_quote_idents(
+        qw(
+          event
+          change_id
+          change
+          project
+          note
+          tags
+          requires
+          conflicts
+          committer_name
+          committer_email
+          planned_at
+          planner_name
+          planner_email
+          committed_at
+          )
+    );
+
     $dbh->{odbc_force_bind_type} = DBI::SQL_VARCHAR;
 
-
-    $dbh->do(qq{
+    $dbh->do(
+        qq{
         INSERT INTO $schema events (
             $cols
         )
@@ -612,11 +617,11 @@ sub _log_event {
     return $self;
 }
 
-
 sub changes_requiring_change {
     my ( $self, $change ) = @_;
-    my $schema = $self->_schema;
-    my $qrystmt = $self->dbh->prepare(qq{
+    my $schema  = $self->_schema;
+    my $qrystmt = $self->dbh->prepare(
+        qq{
         SELECT c.change_id, c.project, c.change, (
             SELECT top 1 tag
               FROM $schema changes c2
@@ -627,19 +632,21 @@ sub changes_requiring_change {
         ) AS asof_tag
           FROM $schema dependencies d
           JOIN $schema changes c ON c.change_id = d.change_id
-         WHERE d.dependency_id = ?});
-         
-     $qrystmt->bind_param(1,$change->id,DBI::SQL_VARCHAR);
-     
-     $qrystmt->execute();
-     
-     return @{$qrystmt->fetchall_arrayref({})};
+         WHERE d.dependency_id = ?}
+    );
+
+    $qrystmt->bind_param( 1, $change->id, DBI::SQL_VARCHAR );
+
+    $qrystmt->execute();
+
+    return @{ $qrystmt->fetchall_arrayref( {} ) };
 }
 
 sub name_for_change_id {
     my ( $self, $change_id ) = @_;
     my $schema = $self->_schema;
-    return $self->dbh->selectcol_arrayref(qq{
+    return $self->dbh->selectcol_arrayref(
+        qq{
         SELECT TOP 1 c.change || COALESCE((
             SELECT tag
               FROM $schema changes c2
@@ -649,7 +656,8 @@ sub name_for_change_id {
         ), '')
           FROM $schema changes c
          WHERE change_id = ?
-    }, undef, $change_id)->[0];
+    }, undef, $change_id
+    )->[0];
 }
 
 sub change_offset_from_id {
@@ -660,22 +668,23 @@ sub change_offset_from_id {
     return $self->load_change($change_id) unless $offset;
 
     # Are we offset forwards or backwards?
-    my ( $dir, $op ) = $offset > 0 ? ( 'ASC', '>' ) : ( 'DESC' , '<' );
+    my ( $dir, $op ) = $offset > 0 ? ( 'ASC', '>' ) : ( 'DESC', '<' );
     my $tscol  = sprintf $self->_ts2char_format, 'c.planned_at';
     my $tagcol = sprintf $self->_listagg_format, 't.tag';
 
     $offset = abs($offset) - 1;
-    my ($offset_expr, $limit_expr) = ('', '');
+    my ( $offset_expr, $limit_expr ) = ( '', '' );
     if ($offset) {
         $offset_expr = "OFFSET $offset";
 
         # Some engines require LIMIT when there is an OFFSET.
-        if (my $lim = $self->_limit_default) {
+        if ( my $lim = $self->_limit_default ) {
             $limit_expr = "TOP $lim ";
         }
     }
 
-    my $change = $self->dbh->selectrow_hashref(qq{
+    my $change = $self->dbh->selectrow_hashref(
+        qq{
         SELECT $limit_expr c.change_id AS id, c.change AS name, c.project, c.note,
                $tscol AS "timestamp", c.planner_name, c.planner_email,
                $tagcol AS tags
@@ -689,41 +698,47 @@ sub change_offset_from_id {
                c.planner_name, c.planner_email, c.committed_at
          ORDER BY c.committed_at $dir
           $offset_expr
-    }, undef, $self->plan->project, $change_id) || return undef;
+    }, undef, $self->plan->project, $change_id
+    ) || return undef;
     $change->{timestamp} = _dt $change->{timestamp};
-    unless (ref $change->{tags}) {
+    unless ( ref $change->{tags} ) {
         $change->{tags} = $change->{tags} ? [ split / / => $change->{tags} ] : [];
     }
     return $change;
 }
 
 sub change_id_for {
-    my ( $self, %p) = @_;
-    my $dbh = $self->dbh;
+    my ( $self, %p ) = @_;
+    my $dbh    = $self->dbh;
     my $schema = $self->_schema;
 
     if ( my $cid = $p{change_id} ) {
+
         # Find by ID.
-        return $dbh->selectcol_arrayref(qq{
+        return $dbh->selectcol_arrayref(
+            qq{
             SELECT change_id
               FROM $schema changes
              WHERE change_id = ?
-        }, undef, $cid)->[0];
+        }, undef, $cid
+        )->[0];
     }
 
     my $project = $p{project} || $self->plan->project;
     if ( my $change = $p{change} ) {
         if ( my $tag = $p{tag} ) {
+
             # There is nothing before the first tag.
             return undef if $tag eq 'ROOT' || $tag eq 'FIRST';
 
             # Find closest to the end for @HEAD.
-            return $self->_cid_head($project, $change)
-                if $tag eq 'HEAD' || $tag eq 'LAST';
+            return $self->_cid_head( $project, $change )
+              if $tag eq 'HEAD' || $tag eq 'LAST';
 
             # Find by change name and following tag.
             my $limit = $self->_can_limit ? "\n             TOP 1" : '';
-            return $dbh->selectcol_arrayref(qq{
+            return $dbh->selectcol_arrayref(
+                qq{
                 SELECT $limit changes.change_id
                   FROM $schema changes
                   JOIN $schema tags
@@ -732,36 +747,42 @@ sub change_id_for {
                  WHERE changes.project = ?
                    AND changes.change  = ?
                    AND tags.tag        = ?
-            }, undef, $project, $change, '@' . $tag)->[0];
+            }, undef, $project, $change, '@' . $tag
+            )->[0];
         }
 
         # Find earliest by change name.
         my $limit = $self->_can_limit ? "\n             TOP 1" : '';
-        return $dbh->selectcol_arrayref(qq{
+        return $dbh->selectcol_arrayref(
+            qq{
             SELECT $limit change_id
               FROM $schema changes
              WHERE project = ?
                AND changes.change  = ?
              ORDER BY changes.committed_at ASC
-        }, undef, $project, $change)->[0];
+        }, undef, $project, $change
+        )->[0];
     }
 
     if ( my $tag = $p{tag} ) {
+
         # Just return the latest for @HEAD.
-        return $self->_cid('DESC', 0, $project)
-            if $tag eq 'HEAD' || $tag eq 'LAST';
+        return $self->_cid( 'DESC', 0, $project )
+          if $tag eq 'HEAD' || $tag eq 'LAST';
 
         # Just return the earliest for @ROOT.
-        return $self->_cid('ASC', 0, $project)
-            if $tag eq 'ROOT' || $tag eq 'FIRST';
+        return $self->_cid( 'ASC', 0, $project )
+          if $tag eq 'ROOT' || $tag eq 'FIRST';
 
         # Find by tag name.
-        return $dbh->selectcol_arrayref(qq{
+        return $dbh->selectcol_arrayref(
+            qq{
             SELECT change_id
               FROM $schema tags
              WHERE project = ?
                AND tag     = ?
-        }, undef, $project, '@' . $tag)->[0];
+        }, undef, $project, '@' . $tag
+        )->[0];
     }
 
     # We got nothin.
@@ -773,8 +794,9 @@ sub deployed_changes_since {
     my $tscol  = sprintf $self->_ts2char_format, 'c.planned_at';
     my $tagcol = sprintf $self->_listagg_format, 't.tag';
     my $schema = $self->_schema;
-    
-        my $qrystmt = $self->dbh->prepare(qq{
+
+    my $qrystmt = $self->dbh->prepare(
+        qq{
             SELECT c.change_id AS id, c.change AS name, c.project, c.note,
                    $tscol AS "timestamp", c.planner_name, c.planner_email,
                    $tagcol AS tags
@@ -784,22 +806,22 @@ sub deployed_changes_since {
                AND c.committed_at > (SELECT committed_at FROM sqitch.changes WHERE change_id = ?)
              GROUP BY c.change_id, c.change, c.project, c.note, c.planned_at,
                    c.planner_name, c.planner_email, c.committed_at
-             ORDER BY c.committed_at ASC});    
-    
-    	$qrystmt->bind_param(1,$self->plan->project,DBI::SQL_VARCHAR);
-    	$qrystmt->bind_param(2,$change->id,DBI::SQL_VARCHAR);
-    
-   	$qrystmt->execute();
-    
+             ORDER BY c.committed_at ASC}
+    );
+
+    $qrystmt->bind_param( 1, $self->plan->project, DBI::SQL_VARCHAR );
+    $qrystmt->bind_param( 2, $change->id,          DBI::SQL_VARCHAR );
+
+    $qrystmt->execute();
+
     return map {
         $_->{timestamp} = _dt $_->{timestamp};
-        unless (ref $_->{tags}) {
+        unless ( ref $_->{tags} ) {
             $_->{tags} = $_->{tags} ? [ split / / => $_->{tags} ] : [];
         }
         $_;
-   } @{$qrystmt->fetchall_arrayref({})};
+    } @{ $qrystmt->fetchall_arrayref( {} ) };
 }
-
 
 1;
 
