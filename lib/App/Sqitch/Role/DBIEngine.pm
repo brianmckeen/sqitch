@@ -71,7 +71,11 @@ sub _register_release {
     return $self;
 }
 
-sub _version_query {qq{SELECT MAX(version) FROM $schema releases'}}
+sub _version_query {
+    my ($self) = @_;
+    my $schema = $self->_schema;
+    return "SELECT MAX(version) FROM $schema releases";
+}
 
 sub registry_version {
     my $self = shift;
