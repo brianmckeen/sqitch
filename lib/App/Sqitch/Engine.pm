@@ -178,7 +178,7 @@ sub deploy {
     my $plan     = $self->_sync_plan;
     my $to_index = $plan->count - 1;
 
-    if ($self->name eq 'mssql') {
+    if ($self->name eq 'mssql') { # this being necessary seems like a bug, no?
               $self->initialize;
     }
     
