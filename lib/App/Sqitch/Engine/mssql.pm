@@ -14,7 +14,6 @@ use Moo;
 use App::Sqitch::Types qw(DBH URIDB ArrayRef);
 use namespace::autoclean;
 use List::MoreUtils qw(firstidx);
-use Win32::SqlServer;
 use File::Slurp;
 
 extends 'App::Sqitch::Engine';
