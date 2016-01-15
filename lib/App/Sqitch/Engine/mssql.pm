@@ -81,6 +81,40 @@ sub registry_destination {
     return $uri->as_string;
 }
 
+has _driver => (
+    is  => 'rw',
+    isa => sub { die "Driver must be one of theses DBD modules: DBD::ADO, DBD::ODBC, DBD::Sybase\n" unless $_[0] =~ m/\ADBD::(?:ADO|ODBC|Sybase)\z/ },
+);
+
+sub use_driver {
+    my ($self) = @_;
+
+    if ( $self->_driver() ) {
+        eval "require " . $self->_driver();
+        if ($@) {
+            hurl $self->key => __x( "Could not load specified driver: {driver}", driver => $self->_driver() );
+        }
+    }
+    elsif ( $^O eq 'MSWin32' && try { require DBD::ADO } ) {
+        $self->_driver('DBD::ADO');
+    }
+    elsif ( try { require DBD::ODBC } ) {
+        $self->_driver('DBD::ODBC');
+    }
+    elsif ( try { require DBD::Sybase } ) {
+        $self->_driver('DBD::Sybase');
+    }
+    else {
+        hurl $self->key => __x(
+            'Need one of {drivers} to manage {engine}',
+            drivers => 'DBD::ADO, DBD::ODBC, DBD::Sybase',
+            engine  => $self->name,
+        );
+    }
+
+    return $self;
+}
+
 has dbh => (
     is      => 'rw',
     isa     => DBH,
@@ -89,7 +123,7 @@ has dbh => (
         my $self = shift;
         $self->use_driver;
 
-        my $uri = $self->registry_uri;
+        my $uri = $self->registry_uri;    # ?how does $uri->dbi_dsn know what $self->driver to use?
 
         my $dbh = DBI->connect(
             $uri->dbi_dsn,
@@ -154,9 +188,16 @@ has _sqlcmd => (
 
 sub sqlcmd { @{ shift->_sqlcmd } }
 
-sub key            { 'mssql' }
-sub name           { 'MSSQL' }
-sub driver         { 'DBD::ADO' }
+sub key  { 'mssql' }
+sub name { 'MSSQL' }
+
+sub driver {
+    my ($self) = @_;
+    if ( !$self->_driver ) {
+        $self->use_driver;    # safe because our use_driver() does not call driver()
+    }
+    return $self->_driver;
+}
 sub default_client { 'sqlcmd.exe' }
 
 sub _char2ts {
