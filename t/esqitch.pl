@@ -17,7 +17,7 @@ if ($ARGV[0] eq 'add')
     }
     else
     {
-      $addarg[3] = '-t sqlcmd.' . $ARGV[1]; # $ARGV[1] is the template type (table,view,schema etc.)	
+      $addarg[3] = '-t mssql.' . $ARGV[1]; # $ARGV[1] is the template type (table,view,schema etc.)
     }
     $addarg[4] = '-s object_schema=' . $ARGV[2]; # $ARGV[2] is the schema for the object (used in template)
     $addarg[5] = '-s object_name=' . $ARGV[3]; # $ARGV[3] is the object name (used in template)

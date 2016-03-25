@@ -38,28 +38,6 @@ has target => (
     }
 );
 
-has integrated_security => (
-    is      => 'ro',
-    isa     => Str,
-    lazy    => 1,
-    default => sub {
-        my $self = shift;
-        my $engine = $self->key;
-        return $self->sqitch->config->get( key => "engine.$engine.integrated_security");
-    }
-);
-
-has provider => (
-    is      => 'ro',
-    isa     => Str,
-    lazy    => 1,
-    default => sub {
-        my $self = shift;
-        my $engine = $self->key;
-        return $self->sqitch->config->get( key => "engine.$engine.provider");
-    }
-);
-
 sub registry_destination { shift->destination }
 
 has start_at => (
@@ -175,16 +153,9 @@ sub use_driver {
 sub deploy {
     my ( $self, $to, $mode ) = @_;
     my $sqitch   = $self->sqitch;
-    if ($self->name eq 'sqlcmd') {
-      $self->initialize;
-    }
     my $plan     = $self->_sync_plan;
     my $to_index = $plan->count - 1;
 
-    if ($self->name eq 'mssql') { # this being necessary seems like a bug, no?
-              $self->initialize;
-    }
-    
     hurl plan => __ 'Nothing to deploy (empty plan)' if $to_index < 0;
 
     if (defined $to) {

@@ -1441,6 +1441,30 @@ Excellent. Let's go ahead and commit this change:
   # 
   Nothing to deploy (up-to-date)
 
+=head1 Support for different DBI drivers
+
+ATM it works with L<DBD::ODBC> and has experimental support for L<DBD::ADO> and L<DBD::Sybase> (same as L<URI::db::mssql/dbi_dsn>).
+
+If you have problems w/ one of them in use simply install L<DBD::ODBC> and it will be used instead.
+
+In order to ensure support for all 3 drivers:
+
+=over 4
+
+=item * registry_uri() needs the C<TODO: is this correct for all 3 $self->dbd_driver()?> comment addressed
+
+=item * optional/YAGNI?: create a config option to specify the driver
+
+=back
+
+If you have experience w/ L<DBD::ADO> or L<DBD::Sybase> feel free to participate!
+
+=head1 sqlcmd.exe/sqlcmd Caveat
+
+To run this on non-Windows machines you will need Microsoft’s sqlcmd utility installed in your path.
+
+More information can be found at L<https://msdn.microsoft.com/en-us/library/hh568451.aspx>.
+
 =head1 More to Come
 
 Sqitch is a work in progress. Better integration with version control systems

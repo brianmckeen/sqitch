@@ -11,14 +11,35 @@ use Locale::TextDomain qw(App-Sqitch);
 use App::Sqitch::Plan::Change;
 use Path::Class;
 use Moo;
-use App::Sqitch::Types qw(DBH URIDB ArrayRef);
+use App::Sqitch::Types qw(DBH URIDB ArrayRef Str);
 use namespace::autoclean;
-use List::MoreUtils qw(firstidx);
-use File::Slurp;
+use File::Slurp qw(read_file);
 
 extends 'App::Sqitch::Engine';
 
 our $VERSION = '0.999_1';
+
+has integrated_security => (
+    is      => 'ro',
+    isa     => Str,
+    lazy    => 1,
+    default => sub {
+        my $self   = shift;
+        my $engine = $self->key;
+        return $self->sqitch->config->get( key => "engine.$engine.integrated_security" );
+    }
+);
+
+has provider => (
+    is      => 'ro',
+    isa     => Str,
+    lazy    => 1,
+    default => sub {
+        my $self   = shift;
+        my $engine = $self->key;
+        return $self->sqitch->config->get( key => "engine.$engine.provider" );
+    }
+);
 
 has registry_uri => (
     is       => 'ro',
@@ -26,6 +47,7 @@ has registry_uri => (
     lazy     => 1,
     required => 1,
     default  => sub {
+        require URI::QueryParam;
         my $self   = shift;
         my $uri    = $self->uri->clone;
         my @fields = split /\//, $uri;
@@ -33,13 +55,44 @@ has registry_uri => (
         my @host   = split /@/, $fields[2];
         my $pwd    = $uri->password;
 
-        if ( defined $pwd ) {
-            $uri->query( "Provider=" . $self->provider . ";Initial Catalog=" . $db . ";Server=" . $host[1] . ";" );
+        # normalize params since they are case insensitive
+        for my $param ( $uri->query_param ) {
+            my @values = $uri->query_param_delete($param);    # does not leave $param in hash w/ no values
+            $uri->query_param( lc($param) => @values );
         }
-        if ( not defined $pwd ) {
 
-            $uri->query( "Provider=" . $self->provider . ";Integrated Security=" . $self->integrated_security . ";Initial Catalog=" . $db . ";Server=" . $host[1] . ";" );
+        # TODO: is this correct for all 3 $self->dbd_driver()?
+        #   If so: update this comment and sqitchtutorial-mssql.pod POD to reflect that.
+        #   If not: update the code to do the right thing and then update this comment and sqitchtutorial-mssql.pod POD to reflect that.
+        if ( !$uri->query_param('provider') ) {
+            $uri->query_param( 'provider', $self->provider ) if $self->provider;
         }
+        if ( !$uri->query_param('initial catalog') ) {
+            $uri->query_param( 'initial catalog', $db );
+        }
+        if ( !$uri->query_param('server') ) {
+            $uri->query_param( 'server', $host[1] );
+        }
+
+        if ( defined $pwd ) {
+            $uri->query_param( "persist security info", "False" ) unless $uri->query_param('persist security info');
+        }
+        else {
+            # https://msdn.microsoft.com/library/ms254500(v=vs.100).aspx#Anchor_1
+            my $seckey = 'integrated security';
+            my $secval = $self->integrated_security || 'SSPI';
+
+            if ( $self->provider =~ m/odbc/i ) {
+                $seckey = 'trusted_connection';
+                $secval = 'yes' if lc($secval) eq 'sspi' || lc($secval) eq 'true';
+            }
+            elsif ( $self->provider =~ m/oracleclient/i ) {
+                $secval = 'yes' if lc($secval) eq 'sspi' || lc($secval) eq 'true';
+            }
+
+            $uri->query_param( $seckey, $secval ) unless $uri->query_param($seckey);
+        }
+
         return $uri;
     },
 );
@@ -81,7 +134,7 @@ sub registry_destination {
     return $uri->as_string;
 }
 
-has _driver => (
+has dbd_driver => (
     is  => 'rw',
     isa => sub { die "Driver must be one of theses DBD modules: DBD::ADO, DBD::ODBC, DBD::Sybase\n" unless $_[0] =~ m/\ADBD::(?:ADO|ODBC|Sybase)\z/ },
 );
@@ -89,20 +142,20 @@ has _driver => (
 sub use_driver {
     my ($self) = @_;
 
-    if ( $self->_driver() ) {
-        eval "require " . $self->_driver();
+    if ( $self->dbd_driver() ) {
+        eval "require " . $self->dbd_driver();
         if ($@) {
-            hurl $self->key => __x( "Could not load specified driver: {driver}", driver => $self->_driver() );
+            hurl $self->key => __x( "Could not load specified driver: {driver}", driver => $self->dbd_driver() );
         }
     }
     elsif ( $^O eq 'MSWin32' && try { require DBD::ADO } ) {
-        $self->_driver('DBD::ADO');
+        $self->dbd_driver('DBD::ADO');
     }
     elsif ( try { require DBD::ODBC } ) {
-        $self->_driver('DBD::ODBC');
+        $self->dbd_driver('DBD::ODBC');
     }
     elsif ( try { require DBD::Sybase } ) {
-        $self->_driver('DBD::Sybase');
+        $self->dbd_driver('DBD::Sybase');
     }
     else {
         hurl $self->key => __x(
@@ -123,10 +176,12 @@ has dbh => (
         my $self = shift;
         $self->use_driver;
 
-        my $uri = $self->registry_uri;    # ?how does $uri->dbi_dsn know what $self->driver to use?
+        my $uri = $self->registry_uri;
 
+        my $driver = $self->dbd_driver;
+        $driver =~ s/DBD:://;
         my $dbh = DBI->connect(
-            $uri->dbi_dsn,
+            $uri->dbi_dsn($driver),
             scalar $self->username,
             scalar $self->password,
             {
@@ -193,12 +248,12 @@ sub name { 'MSSQL' }
 
 sub driver {
     my ($self) = @_;
-    if ( !$self->_driver ) {
+    if ( !$self->dbd_driver ) {
         $self->use_driver;    # safe because our use_driver() does not call driver()
     }
-    return $self->_driver;
+    return $self->dbd_driver;
 }
-sub default_client { 'sqlcmd.exe' }
+sub default_client { $^O eq "MSWin32" ? 'sqlcmd.exe' : 'sqlcmd' }    # https://msdn.microsoft.com/en-us/library/hh568451.aspx
 
 sub _char2ts {
     substr( $_[1], 0, 10 ) . ' ' . substr( $_[1], 11, 16 );
@@ -229,22 +284,23 @@ sub initialized {
 }
 
 sub initialize {
-
     my $self  = shift;
     my $uri   = $self->uri->clone;
     my $uname = $uri->user;
     my $pwd   = $uri->password;
 
-    #Create the Sqitch database if it does not exist.
-    ( my $db = $self->registry ) =~ s/"/""/g;
-    my $sqlsrv = sql_init( $self->uri->host, undef, undef, $self->registry_uri->dbname );
-
-    if ( defined $pwd ) {
-        $sqlsrv = sql_init( $self->uri->host, $uname, $pwd, $self->registry_uri->dbname );
-    }
-
+    # Create the Sqitch database if it does not exist.
     my $stmnt = sprintf(
-        "CREATE SCHEMA %s",
+        q{
+        IF NOT EXISTS (
+        SELECT  schema_name
+        FROM    information_schema.schemata
+        WHERE   schema_name = '%s' )
+
+        BEGIN
+        EXEC sp_executesql N'CREATE SCHEMA %s'
+        END},
+        $self->registry,
         $self->registry
     );
 
@@ -253,36 +309,27 @@ sub initialize {
         $self->registry
     );
 
-    my $registry = $sqlsrv->sql($check_stmnt);
+    my $dbh = $self->dbh;
+    my ($reg) = $dbh->selectrow_array($check_stmnt);
 
-    my $reg = "";
-
-    foreach my $row (@$registry) {
-        $reg = "$$row{schema_name}";
-    }
-
-    if ( $reg ne $self->registry ) {
-        my $result = $sqlsrv->sql($stmnt);
+    if ( !$reg || $reg ne $self->registry ) {
+        $dbh->do($stmnt);
         $self->run_upgrade( file(__FILE__)->dir->file('mssql.sql') );
 
         my @tables = qw(releases changes dependencies events projects tags);
         foreach my $name (@tables) {
-            my $schema_stmnt = sprintf(
-                qq
-	{ALTER SCHEMA %s TRANSFER $name;},
-                $self->registry
-            );
-            $result = $sqlsrv->sql($schema_stmnt);
+            my $schema_stmnt = sprintf( "ALTER SCHEMA %s TRANSFER $name;", $self->registry );
+            $dbh->do($schema_stmnt);
         }
+
         $self->_register_release;
     }
 }
 
 sub run_upgrade {
     my ( $self, $file ) = @_;
-    my $sqlsrv     = sql_init( $self->uri->host, undef, undef, $self->registry_uri->dbname );
     my $file_stmnt = read_file($file);
-    my $result     = $sqlsrv->sql($file_stmnt);
+    my $result     = $self->dbh->do($file_stmnt);
 }
 
 # Override to lock the Sqitch tables. This ensures that only one instance of
@@ -904,15 +951,43 @@ App::Sqitch::Engine::mssql - Sqitch MSSQL Engine
 
 =head1 Synopsis
 
-my $mysql = App::Sqitch::Engine->load( engine => 'mssql' );
+my $mssql = App::Sqitch::Engine->load( engine => 'mssql' );
 
 =head1 Description
 
 App::Sqitch::Engine::mssql provides the MSSQL storage engine for Sqitch.
 
+=head2 Changing the DBD driver
+
+App::Sqitch::Engine::mssql supports multiple DBD drivers.
+
+You can get the current driver from:
+
+     $mysql->dbd_driver()
+
+If it is not set it will attempt to determine the best one to use in this order: L<DBD::ADO> on Win32 machine, L<DBD::ODBC>, L<DBD::Sybase>.
+
+It can be set two ways:
+
+via the new() attribute C<dbd_driver>:
+
+   my $mssql = App::Sqitch::Engine->load( engine => 'mssql', dbd_driver => "DBD::ADO" );
+   my $mssql = App::Sqitch::Engine->load( engine => 'mssql', dbd_driver => "DBD::ODBC" );
+   my $mssql = App::Sqitch::Engine->load( engine => 'mssql', dbd_driver => "DBD::Sybase" );
+
+or via the attribute method C<dbd_driver>:
+
+   $mysql->dbd_driver("DBD::ADO");
+   $mysql->dbd_driver("DBD::ODBC");
+   $mysql->dbd_driver("DBD::Sybase");
+
+Specifying any other value will also throw an exception.
+
+Later when it is actually needed, if the given driver can not be loaded C<use_driver()> will throw an exception to that effect.
+
 =head1 Author
 
-David E. Wheeler <david@justatheory.com>
+David E. Wheeler <david@justatheory.com>, Brian Mckeen <brian.mckeen@nhs.net>, Dan Muey <http://drmuey.com/cpan_contact.pl>
 
 =head1 License
 
